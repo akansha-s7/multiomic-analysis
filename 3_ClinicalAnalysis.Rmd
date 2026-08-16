@@ -8,5 +8,42 @@ title: "Data Download and Clinical Analysis"
 currDir = "/Users/akki/Documents/multiomic-analysis"
 setwd(currDir)
 knitr::opts_knit$set(root.dir = normalizePath(currDir))
-source("packages_loading.R")
+
+# Use this as a source file for all downstream analysis
+source("2_PackageLoading.R")
 ```
+
+We will start with loading data from TCGA (The Cancer Genome Atlas). For the sake of this project, we'll work with breast cancer data. 
+
+```{r}
+
+# Submitting the "request"
+clin_query <- GDCquery(project = "TCGA-BRCA", 
+                       data.category = "Clinical",
+                       data.type = "Clinical Supplement",
+                       data.format = 'BCR Biotab')
+
+# Downloading and reading data into R
+GDCdownload(
+  query = clin_query,
+  directory = "GDCdata"
+)
+
+clinical.BCRtab.all <- GDCprepare(
+  query = clin_query,
+  directory = "GDCdata"
+)
+
+# Extract patient level clinical table
+clinic <- clinical.BCRtab.all$clinical_patient_brca[-c(1, 2), ]
+
+# Rename patient ID column
+colnames(clinic)[colnames(clinic) == "bcr_patient_barcode"] <- "Tumor_Sample_Barcode"
+
+```
+
+```{r}
+colnames(clinic)
+```
+
+

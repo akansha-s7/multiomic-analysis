@@ -11,6 +11,12 @@ knitr::opts_knit$set(root.dir = normalizePath(currDir))
 
 # Use this as a source file for all downstream analysis
 source("2_PackageLoading.R")
+
+# creation of analysis data directory for intermediate data storage
+dir.create(
+  "analysis_data",
+  showWarnings = FALSE
+)
 ```
 
 We will start with loading data from TCGA (The Cancer Genome Atlas). For the sake of this project, we'll work with breast cancer data. 
@@ -46,4 +52,133 @@ colnames(clinic)[colnames(clinic) == "bcr_patient_barcode"] <- "Tumor_Sample_Bar
 colnames(clinic)
 ```
 
+```{r}
+# Convert nodal status to text.
+clinic$nodal_status <- as.character(clinic$ajcc_nodes_pathologic_pn)
 
+clinic$node_group <- NA
+
+# N0 categories indicate no regional lymph-node metastasis. This includes labels such as N0, N0(i-), and N0(mol-).
+node_negative_mask <- grepl("^N0", clinic$nodal_status, ignore.case = TRUE)
+clinic$node_group[node_negative_mask] <- "Node Negative"
+
+
+# N1, N2, and N3 indicate regional lymph-node involvement.
+node_positive_mask <- grepl("^N[1-3]", clinic$nodal_status, ignore.case = TRUE)
+clinic$node_group[node_positive_mask] <- "Node Positive"
+
+
+# Convert the grouping variable into a factor.
+clinic$node_group <- factor(clinic$node_group, levels = c(
+    "Node Negative",
+    "Node Positive"
+  )
+)
+
+# Check the available sample sizes.
+table(
+  clinic$node_group,
+  useNA = "ifany"
+)
+```
+
+```{r}
+# Convert the survival columns to numeric values
+clinic$death_days_to <- as.numeric(clinic$death_days_to)
+clinic$last_contact_days_to <- as.numeric(clinic$last_contact_days_to)
+
+
+# Create survival time.
+clinic$survival_time <- ifelse(
+  clinic$vital_status == "Dead",
+  clinic$death_days_to,
+  clinic$last_contact_days_to
+)
+
+
+# Record if death event occurred
+clinic$death_event <- (
+  clinic$vital_status == "Dead"
+)
+
+
+# Keep patients with known nodal and survival information. Removes NAs
+node_survival_mask <- (
+  !is.na(clinic$node_group) &
+  !is.na(clinic$survival_time) &
+  clinic$survival_time >= 0 &
+  !is.na(clinic$death_event)
+)
+node_survival <- clinic[node_survival_mask, ]
+
+
+# Examine group and event counts.
+table(node_survival$node_group)
+
+table(
+  node_survival$node_group,
+  node_survival$death_event
+)
+```
+Notice a greater proportion of deaths ("true") for node positive patient. 
+
+```{r}
+# Create a survival object
+
+survival_object <- Surv(
+  time = node_survival$survival_time / 365.25,
+  event = node_survival$death_event
+)
+
+# Fit one Kaplan-Meier curve for node-negative patients and another for node-positive patients.
+
+fit_object <- survfit(
+  survival_object ~ node_group,
+  data = node_survival
+)
+
+# Create the Kaplan-Meier plot.
+
+KM_plot <- ggsurvplot(
+  fit_object,
+  data = node_survival,
+
+  pval = TRUE,
+
+  conf.int = TRUE,
+
+  # number of patients still being followed.
+  risk.table = TRUE,
+
+  xlab = "Years since diagnosis",
+  ylab = "Overall survival probability",
+  legend.title = "Lymph-node status",
+
+  ggtheme = theme_bw(),
+  palette = c("#2166AC", "#B2182B")
+)
+
+KM_plot
+```
+
+
+```{r}
+saveRDS(
+  clinic,
+  "analysis_data/BRCA_clinical_processed.rds"
+)
+```
+
+
+```{r}
+png(
+  filename = "KM_node_status.png",
+  width = 2400,
+  height = 2100,
+  res = 300
+)
+
+print(KM_plot)
+
+dev.off()
+```

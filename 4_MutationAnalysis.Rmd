@@ -115,5 +115,46 @@ maf <- maf[
 ]
 ```
 
+Create MAF objects. 
+```{r}
+maf_object <- read.maf(
+  maf = maf,
+  clinicalData = clinical,
+  isTCGA = TRUE
+)
+
+node_negative_barcodes <- clinical$Tumor_Sample_Barcode[clinical$node_group == "Node Negative"]
+
+node_positive_barcodes <- clinical$Tumor_Sample_Barcode[clinical$node_group == "Node Positive"]
+
+node_negative_maf <- subsetMaf(maf = maf_object, tsb = node_negative_barcodes)
+
+node_positive_maf <- subsetMaf(maf = maf_object,tsb = node_positive_barcodes)
+```
+
+Visualizing common mutations. 
+```{r}
+oncoplot(
+  maf = maf_object,
+  top = 20,
+  clinicalFeatures = "node_group"
+)
+```
+
+```{r}
+oncoplot(
+  maf = node_negative_maf,
+  top = 20,
+  titleText = "Node Negative"
+)
+```
+
+```{r}
+oncoplot(
+  maf = node_positive_maf,
+  top = 20,
+  titleText = "Node Positive"
+)
+```
 
 

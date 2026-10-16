@@ -11,20 +11,15 @@ currDir = "/Users/akki/Documents/multiomic-analysis"
 setwd(currDir)
 knitr::opts_knit$set(root.dir = normalizePath(currDir))
 
-# Use this as a source file for all downstream analysis
 source("2_PackageLoading.R")
 
-dir.create(
-  "results/mutations",
-  recursive = TRUE,
-  showWarnings = FALSE
-)
+dir.create("analysis_data", showWarnings = FALSE)
+dir.create("results/mutations", recursive = TRUE, showWarnings = FALSE)
 ```
 
 
 ```{r}
-# Load the processed clinical data created
-# in the clinical-analysis file.
+# Load the processed clinical data created in the clinical-analysis file.
 
 clinical <- readRDS(
   "analysis_data/BRCA_clinical_processed.rds"
@@ -50,12 +45,10 @@ clinical$node_group <- droplevels(clinical$node_group)
 table(clinical$node_group)
 ```
 
-Load the MAF data
+Load the MAF data.
+Run this chunk once. After the RDS file has been created, it can be skipped on later runs.
 ```{r}
-gdc_directory <- file.path(
-  currDir,
-  "GDCdata"
-)
+gdc_directory <- file.path(currDir,"GDCdata")
 
 gdc_directory
 getwd()
@@ -82,8 +75,7 @@ maf <- GDCprepare(
   directory = gdc_directory
 )
 
-# Save the prepared object so it can be loaded
-# without downloading it again.
+# Save the prepared object so it can be loaded without downloading it again.
 
 saveRDS(maf, "analysis_data/BRCA_mutations.rds")
 ```
@@ -93,15 +85,10 @@ Create the MAF object.
 
 # Load previously downloaded mutation data
 
-maf <- readRDS(
-  "analysis_data/BRCA_mutations.rds"
-)
+maf <- readRDS("analysis_data/BRCA_mutations.rds")
 
 # saving the prepared object so we don't have to download it each time
-saveRDS(
-  maf,
-  "analysis_data/BRCA_mutations.rds"
-)
+saveRDS(maf, "analysis_data/BRCA_mutations.rds")
 
 # Combine the mutation data with the processed clinical information.
 
@@ -111,39 +98,22 @@ maf_object <- read.maf(
   isTCGA = TRUE
 )
 ```
+
+Match mutation samples to clinical patients
 ```{r}
-# patient barcodes for node-negative tumors
+maf <- readRDS(
+  "analysis_data/BRCA_mutations.rds"
+)
 
-node_negative_barcodes <-
-  maf_object@clinical.data$Tumor_Sample_Barcode[
-    maf_object@clinical.data$node_group == "Node Negative"]
+# Convert mutation sample barcodes to patient barcodes
+maf$Tumor_Sample_Barcode <- substr(
+  maf$Tumor_Sample_Barcode, 1, 12)
 
-
-# patient barcodes for node-positive tumors
-
-node_positive_barcodes <-
-  maf_object@clinical.data$Tumor_Sample_Barcode[
-    maf_object@clinical.data$node_group == "Node Positive"]
-
-
-# MAF object w/ only node-negative tumors
-
-node_negative_maf <- subsetMaf(
-  maf = maf_object,
-  tsb = node_negative_barcodes)
-
-
-# MAF object w/ only node-positive tumors
-
-node_positive_maf <- subsetMaf(
-  maf = maf_object,
-  tsb = node_positive_barcodes)
+# Keep mutation data from patients with known nodal status
+maf <- maf[
+  maf$Tumor_Sample_Barcode %in% clinical$Tumor_Sample_Barcode,
+]
 ```
 
 
-```{r}
-
-
-
-```
 
